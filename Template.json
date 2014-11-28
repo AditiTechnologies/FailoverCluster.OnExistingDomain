@@ -1,0 +1,458 @@
+{
+    "Name": "FailoverCluster.OnExistingDomain",
+    "Description": "Creates a windows failover cluster with quorum configuration 'node and file share majority'. It requires existence of an active directory infrastructure.",
+    "Version": "1.0.0",
+    "Parameters": [
+        {
+            "Name": "Region",
+            "Type": "String",
+            "TypeHint": "AzureRegionName",
+            "Description": "Azure region to which the infrastructure will be deployed."
+        },
+        {
+            "Name": "AffinityGroup",
+            "Type": "String",
+            "TypeHint": "AzureAffinityGroupName",
+            "Description": "Azure affinity group to which the infrastructure will be deployed."
+        },
+        {
+            "Name": "VnetName",
+            "Type": "String",
+            "Description": "Name of Azure Virtual Network to be used for setting up failover cluster. This should already exist."
+        },
+        {
+            "Name": "VnetAddressSpace",
+            "Type": "String",
+            "Description": "Address space of Azure Virtual Network to be used for setting up failover cluster.",
+            "Default": "10.0.0.0/8"
+        },
+        {
+            "Name": "ClusterSubnetName",
+            "Type": "String",
+            "Description": "Name of subnet ithin which failover cluster VMs will be created.",
+            "Default": "failover-cluster"
+        },
+        {
+            "Name": "ClusterSubnetAddressSpace",
+            "Type": "String",
+            "Description": "Address space of subnet within which failover cluster VMs will be created.",
+            "Default": "10.20.2.0/24"
+        },
+        {
+            "Name": "DiskStore",
+            "Type": "String",
+            "TypeHint": "AzureStorageName",
+            "Description": "Name of Azure storage account for creating VM disks. Will be created only if it does not already exists. If it exists then it should lie in the specified affinity group."
+        },
+        {
+            "Name": "Domain",
+            "Type": "String",
+            "TypeHint": "domain",
+            "Description": "NetBios domain name.",
+            "Minimum": 1,
+            "Maximum": 64
+        },
+        {
+            "Name": "FQDN",
+            "Type": "String",
+            "TypeHint": "domain",
+            "Description": "Fully qualified domain name for setting up active directory in the specified Azure Virtual Network. The AD setup for the corresponding should",
+            "Minimum": 1,
+            "Maximum": 64
+        },
+        {
+            "Name": "CloudService",
+            "Type": "String",
+            "TypeHint": "AzureCloudServiceName",
+            "Description": "Name of the Azure Cloud Service."
+        },
+        {
+            "Name": "ClusterName",
+            "Type": "String",
+            "Description": "Name of Windows Failover Cluster. This has to be unique in the domain(setup within the virtual network).",
+            "Minimum": 1,
+            "Maximum": 32
+        },
+        {
+            "Name": "NumberOfClusterNodes",
+            "Type": "Number",
+            "Description": "No of cluster nodes. A minimum of two are required to create a cluster.",
+            "Default": 2,
+            "Minimum": 2
+        },
+        {
+            "Name": "ClusterNodeNamePrefix",
+            "Type": "String",
+            "Description": "Prefix for the cluster virtual machine name. If left empty, the node type will be used.",
+            "Default": "cluster-node-"
+        },
+        {
+            "Name": "VMSize",
+            "Type": "String",
+            "TypeHint": "AzureRoleSize",
+            "Description": "Size of the cluster node VM.",
+            "Default": "Small"
+        },
+        {
+            "Name": "AdminName",
+            "Type": "String",
+            "TypeHint": "username",
+            "Description": "Name of local administrator account.",
+            "Minimum": 1,
+            "Maximum": 64
+        },
+        {
+            "Name": "AdminPassword",
+            "Type": "String",
+            "TypeHint": "password",
+            "Description": "Password of local administrator account.",
+            "MaskValue": true,
+            "Minimum": 8,
+            "Maximum": 127
+        },
+        {
+            "Name": "DomainJoinUserName",
+            "Type": "String",
+            "TypeHint": "username",
+            "Description": "Name of local administrator account.",
+            "Minimum": 1,
+            "Maximum": 64
+        },
+        {
+            "Name": "DomainJoinUserPassword",
+            "Type": "String",
+            "TypeHint": "password",
+            "Description": "Password of local administrator account.",
+            "MaskValue": true,
+            "Minimum": 8,
+            "Maximum": 127
+        },
+        {
+            "Name": "DSRMPassPhrase",
+            "Type": "String",
+            "TypeHint": "password",
+            "Description": "Safemode Password for domain",
+            "MaskValue": true,
+            "Minimum": 8,
+            "Maximum": 127
+        }
+    ],
+    "Network": {
+        "VirtualSites": [
+            {
+                "Name": "{{VnetName}}",
+                "AddressSpace": [
+                    "{{VnetAddressSpace}}"
+                ],
+                "Subnets": [
+                    {
+                        "Name": "{{ClusterSubnetName}}",
+                        "AddressPrefix": "{{ClusterSubnetAddressSpace}}"
+                    }
+                ]
+            }
+        ]
+    },
+    "AffinityGroup": {
+        "Name": "{{AffinityGroup}}",
+        "Region": "{{Region}}",
+        "Label": "Created by Brewmaster"
+    },
+    "StorageAccounts": [
+        {
+            "Name": "{{DiskStore}}",
+            "AffinityGroup": "{{AffinityGroup}}",
+            "Region": "{{Region}}",
+            "Description": "A non-georedundant disk store",
+            "DisableGeoReplication": true
+        }
+    ],
+    "CloudServices": [
+        {
+            "Name": "{{CloudService}}",
+            "AffinityGroup": "{{AffinityGroup}}",
+            "Region": "{{Region}}",
+            "Description": "Windows Failover Cluster deployment",
+            "Deployment": {
+                "VirtualNetwork": "{{VnetName}}",
+                "VirtualMachines": [
+                    {
+                        "Name": "quorum",
+                        "RoleSize": "Small",
+                        "Subnets": [
+                            "{{ClusterSubnetName}}"
+                        ],
+                        "AvailabilitySet": "cluster-avs",
+                        "OsVirtualDisk": {
+                            "OsType": "Windows",
+                            "OsImageName": "a699494373c04fc0bc8f2bb1389d6106__Windows-Server-2012-R2-*"
+                        },
+                        "DataVirtualDisks": [
+                            {
+                                "DiskId": "disk0",
+                                "Lun": 0,
+                                "LogicalSizeInGB": 40
+                            }
+                        ],
+                        "WindowsConfigSet": {
+                            "LocalAdminCredentialId": "DomainAdmin:local",
+                            "EnableAutomaticUpdates": false,
+                            "ChangePasswordAtLogon": false,
+                            "DisableRdp": false,
+                            "DomainJoinSettings": {
+                                "DomainToJoin": "{{FQDN}}",
+                                "CredentialId": "DomainJoinCred"
+                            }
+                        },
+                        "ConfigSets": [
+                            "ClusterNode"
+                        ]
+                    }
+					{% for i in (1..NumberOfClusterNodes) -%}
+                    ,{
+                        "Name": "{{ClusterNodeNamePrefix}}{{i}}",
+                        "RoleSize": "{{VMSize}}",
+                        "Subnets": [
+                            "{{ClusterSubnetName}}"
+                        ],
+                        "AvailabilitySet": "cluster-avs",
+                        "OsVirtualDisk": {
+                            "OsType": "Windows",
+                            "OsImageName": "a699494373c04fc0bc8f2bb1389d6106__Windows-Server-2012-R2-*"
+                        },
+                        "DataVirtualDisks": [
+                            {
+                                "DiskId": "disk0",
+                                "Lun": 0,
+                                "LogicalSizeInGB": 40
+                            }
+                        ],
+                        "WindowsConfigSet": {
+                            "LocalAdminCredentialId": "DomainAdmin:local",
+                            "EnableAutomaticUpdates": false,
+                            "ChangePasswordAtLogon": false,
+                            "DisableRdp": false,
+                            "DomainJoinSettings": {
+                                "DomainToJoin": "{{FQDN}}",
+                                "CredentialId": "DomainJoinCred"
+                            }
+                        },
+                        "ConfigSets": [
+                            "ClusterNode"
+                        ]
+                    }
+					{% endfor -%}
+                ],
+                "DiskStorageAccount": "{{DiskStore}}"
+            }
+        }
+    ],
+    "Credentials": [
+        {
+            "Name": "DomainAdmin:local",
+            "UserName": "{{AdminName}}",
+            "Password": "{{AdminPassword}}"
+        },
+        {
+            "Name": "DomainJoinCred",
+            "UserName": "{{Domain}}\\{{DomainJoinUserName}}",
+            "Password": "{{DomainJoinUserPassword}}"
+        }
+    ],
+    "ConfigSets": [
+        {
+            "Name": "ClusterNode",
+            "Description": "VMs forming the failover cluster.",
+            "Endpoints": [],
+            "ConfigurationIds": [
+                "InitializeClusterNode",
+                "SetupFailoverCluster"
+            ]
+        }
+    ],
+    "Configurations": [
+        {
+            "Name": "InitializeClusterNode",
+            "Description": "Initializes VMs in the failover cloud service",
+            "Resources": [
+                {
+                    "Type": "xFormatDisks",
+                    "ImportModule": "xAzureDataDisks",
+                    "ImportTypeName": "ADITI_xFormatDisks",
+                    "Name": "FormatRawDisks",
+                    "Args": {
+                        "FirstDriveLetter": "F"
+                    }
+                },
+                {
+                    "Type": "WindowsFeature",
+                    "ImportModule": null,
+                    "ImportTypeName": null,
+                    "Name": "FailoverClustering",
+                    "Args": {
+                        "Name": "Failover-Clustering",
+                        "Ensure": "Present",
+                        "IncludeAllSubFeature": "true",
+                        "LogPath": "%BrewmasterDir%\\Logs\\Install-FailoverCluster.log"
+                    }
+                },
+                {
+                    "Type": "WindowsFeature",
+                    "ImportModule": null,
+                    "ImportTypeName": null,
+                    "Name": "RSATClusteringMgmt",
+                    "Args": {
+                        "Name": "RSAT-Clustering-Mgmt",
+                        "Ensure": "Present",
+                        "IncludeAllSubFeature": "true",
+                        "LogPath": "%BrewmasterDir%\\Logs\\Install-RSATClusteringMgmt.log"
+                    },
+                    "Requires": [
+                        "[WindowsFeature]FailoverClustering"
+                    ]
+                },
+                {
+                    "Type": "WindowsFeature",
+                    "ImportModule": null,
+                    "ImportTypeName": null,
+                    "Name": "RSATClusteringPowerShell",
+                    "Args": {
+                        "Name": "RSAT-Clustering-PowerShell",
+                        "Ensure": "Present",
+                        "IncludeAllSubFeature": "true",
+                        "LogPath": "%BrewmasterDir%\\Logs\\Install-RSATClusteringPowershell.log"
+                    },
+                    "Requires": [
+                        "[WindowsFeature]RSATClusteringMgmt"
+                    ]
+                },
+                {
+                    "Type": "WindowsFeature",
+                    "ImportModule": null,
+                    "ImportTypeName": null,
+                    "Name": "RSATClusteringCmdInterface",
+                    "Args": {
+                        "Name": "RSAT-Clustering-CmdInterface",
+                        "Ensure": "Present",
+                        "IncludeAllSubFeature": "true",
+                        "LogPath": "%BrewmasterDir%\\Logs\\Install-RSATClusteringCmdInterface.log"
+                    },
+                    "Requires": [
+                        "[WindowsFeature]RSATClusteringPowerShell"
+                    ]
+                },
+                {
+                    "Type": "File",
+                    "ImportModule": null,
+                    "ImportTypeName": null,
+                    "Name": "CreateQuorumFolder",
+                    "Args": {
+                        "DestinationPath": "F:\\quorum",
+                        "Type": "Directory",
+                        "Ensure": "Present",
+                        "Force": "False"
+                    },
+                    "Nodes": [
+                        "{{CloudService}}.quorum"
+                    ]
+                },
+                {
+                    "Credential": "DomainAdmin:local",
+                    "Type": "Script",
+                    "ImportModule": null,
+                    "ImportTypeName": null,
+                    "Name": "AddDomainAdminToLocalAdminGroup",
+                    "GetScript": "@{ exists = (net localgroup administrators) -contains $acctname }",
+                    "SetScript": "$users = (net localgroup administrators)\r\nif ($users -notcontains $acctname)\r\n{\r\n\tWrite-Verbose \"Adding [$acctname] to local administators group.\"\r\n\tnet localgroup administrators $acctname /Add | Out-Null\r\n}",
+                    "TestScript": null,
+                    "Args": {
+                        "acctname": "{{Domain}}\\{{AdminName}}"
+                    }
+                }
+            ]
+        },
+        {
+            "Name": "SetupFailoverCluster",
+            "Description": "Create failover cluster",
+            "Resources": [
+                {
+                    "Type": "xAzureCluster",
+                    "ImportModule": "xAzureFailOverCluster",
+                    "ImportTypeName": "ADITI_xAzureCluster",
+                    "Name": "CreateFailoverCluster",
+                    "Args": {
+                        "Name": "{{ClusterName}}",
+                        "NumberOfClusterNodes": "%%{{NumberOfClusterNodes}}",
+                        "ClusterNodeNamePrefix": "{{ClusterNodeNamePrefix}}",
+                        "DomainAdministratorCredential": "%%New-Object PSCredential '{{Domain}}\\{{AdminName}}', (ConvertTo-SecureString '{{AdminPassword}}' -AsPlainText -Force)"
+                    },
+                    "Nodes": [
+                        "{{CloudService}}.{{ClusterNodeNamePrefix}}1"
+                    ]
+                },
+                {
+                    "Type": "xWaitForAzureCluster",
+                    "ImportModule": "xAzureFailOverCluster",
+                    "ImportTypeName": "ADITI_xWaitForAzureCluster",
+                    "Name": "WaitForFailoverCluster",
+                    "Args": {
+                        "Name": "{{ClusterName}}",
+                        "RetryIntervalSec": "%%10",
+                        "RetryCount": "%%100",
+                        "DomainAdministratorCredential": "%%New-Object PSCredential '{{Domain}}\\{{AdminName}}', (ConvertTo-SecureString '{{AdminPassword}}' -AsPlainText -Force)"
+                    }
+                },
+                {
+                    "Type": "xSmbShare",
+                    "ImportModule": "xSmbShare",
+                    "ImportTypeName": "MSFT_xSmbShare",
+                    "Name": "CreateQuorumShare",
+                    "Args": {
+                        "Name": "quorum",
+                        "Path": "F:\\quorum",
+                        "FullAccess": "%%\"{{Domain}}\\{{AdminName}}\",\"{{Domain}}\\{{ClusterName}}$\"",
+                        "Ensure": "Present",
+                        "Description": "Failover cluster [{{ClusterName}}] quorum file share"
+                    },
+                    "Nodes": [
+                        "{{CloudService}}.quorum"
+                    ],
+                    "Requires": [
+                        "[xWaitForAzureCluster]WaitForFailoverCluster"
+                    ]
+                },
+                {
+                    "Type": "xWaitForAzureClusterQuorumShare",
+                    "ImportModule": "xAzureFailOverCluster",
+                    "ImportTypeName": "ADITI_xWaitForAzureClusterQuorumShare",
+                    "Name": "WaitForClusterQuorumShare",
+                    "Args": {
+                        "QuorumShare": "\\\\quorum\\quorum",
+                        "RetryIntervalSec": "%%10",
+                        "RetryCount": "%%60",
+                        "DomainAdministratorCredential": "%%New-Object PSCredential '{{Domain}}\\{{AdminName}}', (ConvertTo-SecureString '{{AdminPassword}}' -AsPlainText -Force)"
+                    },
+                    "Nodes": [
+                        "{{CloudService}}.{{ClusterNodeNamePrefix}}1"
+                    ]
+                },
+                {
+                    "Type": "xAzureClusterQuorumMode",
+                    "ImportModule": "xAzureFailOverCluster",
+                    "ImportTypeName": "ADITI_xAzureClusterQuorumMode",
+                    "Name": "CreateClusterQuorumNode",
+                    "Args": {
+                        "QuorumShare": "\\\\quorum\\quorum",
+                        "DomainAdministratorCredential": "%%New-Object PSCredential '{{Domain}}\\{{AdminName}}', (ConvertTo-SecureString '{{AdminPassword}}' -AsPlainText -Force)"
+                    },
+                    "Nodes": [
+                        "{{CloudService}}.{{ClusterNodeNamePrefix}}1"
+                    ],
+                    "Requires": [
+                        "[xWaitForAzureClusterQuorumShare]WaitForClusterQuorumShare"
+                    ]
+                }
+            ]
+        }
+    ]
+}
