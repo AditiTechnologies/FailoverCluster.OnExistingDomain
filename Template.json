@@ -1,7 +1,7 @@
 {
-    "Name": "FailoverCluster.OnExistingDomain",
-    "Description": "Creates a windows failover cluster with quorum configuration 'node and file share majority'. It requires existence of an active directory infrastructure.",
-    "Version": "1.0.0",
+    "Name": "WindowsServerFailoverCluster.OnExistingDomain",
+    "Description": "Creates a windows server failover clustering (WSFC) deployment with quorum configuration as 'node and file share majority'. It requires existence of an active directory infrastructure.",
+    "Version": "0.1.0",
     "Parameters": [
         {
             "Name": "Region",
